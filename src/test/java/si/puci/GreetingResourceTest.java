@@ -1,12 +1,5 @@
 package si.puci;
 
-import io.quarkus.logging.Log;
-import io.quarkus.test.junit.QuarkusTest;
-import io.smallrye.mutiny.Multi;
-
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
-
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.CoreMatchers.is;
 
@@ -15,7 +8,16 @@ import java.time.temporal.ChronoUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+
+import io.quarkus.logging.Log;
+import io.quarkus.test.junit.QuarkusTest;
+import io.smallrye.mutiny.Multi;
+import lombok.extern.jbosslog.JBossLog;
+
 @QuarkusTest
+@JBossLog
 class GreetingResourceTest
 {
     @Test
@@ -33,7 +35,7 @@ class GreetingResourceTest
                         .statusCode(200)
                         .body(is("mutiny-emitter-send-and-await")))
                 .subscribe().with(
-                        Log::info,
+                        log::info,
                         err -> {
                             Log.error(err);
                             ex.set(err);
@@ -82,9 +84,9 @@ class GreetingResourceTest
                         .statusCode(200)
                         .body(is("emitter-send-block-at-end")))
                 .subscribe().with(
-                        Log::info,
+                        log::info,
                         err -> {
-                            Log.error(err);
+                            log.error(err);
                             ex.set(err);
                             failure.set(true);
                         });
@@ -100,7 +102,7 @@ class GreetingResourceTest
         subscription.cancel();
         if (ex.get() != null)
         {
-            Log.error(ex.get());
+            log.error(ex.get());
         }
         Assertions.assertFalse(failure.get());
         //no error!
@@ -120,9 +122,9 @@ class GreetingResourceTest
                         .statusCode(200)
                         .body(is("emitter-send-return-fut")))
                 .subscribe().with(
-                        Log::info,
+                        log::info,
                         err -> {
-                            Log.error(err);
+                            log.error(err);
                             ex.set(err);
                             failure.set(true);
                         });
@@ -138,7 +140,7 @@ class GreetingResourceTest
         subscription.cancel();
         if (ex.get() != null)
         {
-            Log.error(ex.get());
+            log.error(ex.get());
         }
         Assertions.assertFalse(failure.get());
         //no error!
