@@ -1,5 +1,6 @@
 package si.puci;
 
+import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -7,7 +8,13 @@ import java.util.concurrent.CompletionStage;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
 import org.eclipse.microprofile.reactive.messaging.Message;
+import org.eclipse.microprofile.rest.client.annotation.RegisterProvider;
+import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
+import org.eclipse.microprofile.rest.client.inject.RestClient;
+import org.jboss.resteasy.reactive.client.spi.ResteasyReactiveClientRequestContext;
 
+import io.quarkus.logging.Log;
+import io.smallrye.mutiny.Uni;
 import io.smallrye.reactive.messaging.MutinyEmitter;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -15,7 +22,13 @@ import jakarta.transaction.Transactional;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.client.ClientRequestContext;
+import jakarta.ws.rs.client.ClientRequestFilter;
+import jakarta.ws.rs.client.ClientResponseContext;
+import jakarta.ws.rs.client.ClientResponseFilter;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.ext.Provider;
+import jakarta.ws.rs.ext.Providers;
 
 @Path("/hello")
 @Transactional
@@ -28,6 +41,8 @@ public class GreetingResource
     @Inject
     @Channel("emitter")
     Emitter<String> emitter;
+    @RestClient
+    HelloClient helloClient;
 
     @GET
     @Path("/mutiny-emitter-send-and-await")
@@ -39,7 +54,6 @@ public class GreetingResource
         final var myEntity = new MyEntity();
         myEntity.field = OffsetDateTime.now().toString();
         myEntity.persist();
-
         mutinyEmitter.sendAndAwait(myEntity.field);
 
         return "mutiny-emitter-send-and-await";
@@ -106,5 +120,47 @@ public class GreetingResource
                             return CompletableFuture.completedFuture(null);
                         }));
         return completableFuture;
+    }
+
+    @GET
+    @Path("/rest-client-blocking")
+    @Produces(MediaType.TEXT_PLAIN)
+    public String restClientBlocking()
+    {
+        final var myEntity = new MyEntity();
+        myEntity.field = OffsetDateTime.now().toString();
+        myEntity.persist();
+        helloClient.hello();
+
+        return "rest-client-blocking";
+    }
+
+    @GET
+    @Path("/world")
+    @Produces(MediaType.TEXT_PLAIN)
+    public String hello()
+    {
+        return "hello";
+    }
+
+    @RegisterRestClient(baseUri = "http://localhost:8081")
+    @RegisterProvider(TestClientResponseFilter.class)
+    interface HelloClient
+    {
+        @GET
+        @Path("/hello/world")
+        @Produces(MediaType.TEXT_PLAIN)
+        String hello();
+    }
+
+    @Provider
+    public static class TestClientResponseFilter implements ClientResponseFilter
+    {
+
+        @Override
+        public void filter(ClientRequestContext requestContext, ClientResponseContext responseContext) throws IOException
+        {
+            Log.info("I know this is done on eventLoop");
+        }
     }
 }
