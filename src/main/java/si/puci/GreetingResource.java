@@ -2,9 +2,11 @@ package si.puci;
 
 import java.io.IOException;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
+import org.apache.commons.lang3.function.Failable;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
 import org.eclipse.microprofile.reactive.messaging.Message;
@@ -13,11 +15,14 @@ import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.resteasy.reactive.client.spi.ResteasyReactiveClientRequestContext;
 
+import io.quarkus.arc.Arc;
+import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.reactive.messaging.MutinyEmitter;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.transaction.TransactionManager;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
@@ -127,12 +132,36 @@ public class GreetingResource
     @Produces(MediaType.TEXT_PLAIN)
     public String restClientBlocking()
     {
+        Log.infof("tx: %s", Failable.call(() -> Arc.container().select(TransactionManager.class).get().getStatus()));
         final var myEntity = new MyEntity();
         myEntity.field = OffsetDateTime.now().toString();
         myEntity.persist();
         helloClient.hello();
 
         return "rest-client-blocking";
+    }
+
+    @GET
+    @Path("/save")
+    @Produces(MediaType.TEXT_PLAIN)
+    public String saveSomethingToDb()
+    {
+        final var myEntity = new MyEntitySequence();
+        myEntity.field = OffsetDateTime.now().toString();
+        myEntity.persist();
+
+        return "saveSomethingToDb";
+    }
+
+
+    @GET
+    @Path("/query-and-send")
+    @Produces(MediaType.TEXT_PLAIN)
+    public String queryAndSend()
+    {
+        final var panacheEntityBases = MyEntitySequence.listAll();
+        mutinyEmitter.sendAndAwait("hello");
+        return "sa";
     }
 
     @GET
@@ -160,7 +189,7 @@ public class GreetingResource
         @Override
         public void filter(ClientRequestContext requestContext, ClientResponseContext responseContext) throws IOException
         {
-            Log.info("I know this is done on eventLoop");
+            Log.infof("eventLoopTx: %s", Failable.call(() -> Arc.container().select(TransactionManager.class).get().getStatus()));
         }
     }
 }

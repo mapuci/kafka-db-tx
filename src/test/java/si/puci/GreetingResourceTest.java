@@ -184,4 +184,47 @@ class GreetingResourceTest
         Assertions.assertFalse(failure.get());
         //no error!
     }
+
+    @Test
+    void queryAndSend()
+    {
+        given().when().get("/hello/save")
+            .then()
+            .statusCode(200)
+                .body(is("saveSomethingToDb"));
+        //this throws 1:1000
+
+        AtomicBoolean failure = new AtomicBoolean(false);
+        AtomicReference<Throwable> ex = new AtomicReference<>(null);
+
+        final var subscription = Multi.createFrom().ticks().every(Duration.of(1, ChronoUnit.MILLIS))
+                .onItem().invoke(i -> given()
+                        .when().get("/hello/query-and-send")
+                        .then()
+                        .statusCode(200)
+                        .body(is("sa")))
+                .subscribe().with(
+                        log::info,
+                        err -> {
+                            Log.error(err);
+                            ex.set(err);
+                            failure.set(true);
+                        });
+        try
+        {
+            Thread.sleep(60000);
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        subscription.cancel();
+        if (ex.get() != null)
+        {
+            Log.error(ex.get());
+        }
+        Assertions.assertFalse(failure.get());
+        //no error!
+    }
 }
